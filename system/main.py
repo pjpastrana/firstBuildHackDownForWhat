@@ -11,42 +11,25 @@ SHELFIE_EXE = "/home/root/smart_shelf"
 NUM_FORCE_SAMPLES = 5
 NUM_WORKERS = 2
 BASE_FORCES = [0.0, 0.0, 0.0, 0.0]
-MIN_WEIGHT = -sys.maxint - 1
-ITEMS_ADDED = 0
+MIN_WEIGHT = sys.maxint
 FIREDB = firebase.FirebaseApplication('https://torrid-heat-7640.firebaseio.com', None)
 
 def main():
-    pool = Pool(processes=NUM_WORKERS)
     init()
+    pool = Pool(processes=NUM_WORKERS)
     while True:
         pool.apply_async(get_barcode, callback=add_item)
-        if ITEMS_ADDED > 0:
-            check_weight_change()
-        #     pool.apply_async(check_weight_change, callback=remove_item)
-        #barcode = result.get(timeout=1)
-        #print barcode
-        #scan_has_ocurred()
-        # pool.apply_async(scan_has_ocurred, callback = add_item)
-        # pool.close()
-        # pool.join()
+        #pool.apply_async(check_weight_change)
+       
 
-
-# def scan_has_ocurred():
-#     #pool = Pool(1)
-#     pool.apply_async(get_barcode, callback = add_item)
-#     #pool.close()
-#     pool.join()
-#     #return get_barcode("/dev/input/event2")
 def init():
+    print "init start"
+    sys.stdout.flush()
     calculate_base_forces()
     set_db_location_vals_to_empty_string()
-
-def set_db_location_vals_to_empty_string():
-    FIREDB.put('/locationStatus/q0', 'upc', "empty")
-    FIREDB.put('/locationStatus/q1', 'upc', "empty")
-    FIREDB.put('/locationStatus/q2', 'upc', "empty")
-    FIREDB.put('/locationStatus/q3', 'upc', "empty")
-
+    print "init done"
+    sys.stdout.flush()
+    
 def calculate_base_forces():
     num_samples = NUM_FORCE_SAMPLES
     for i in range(num_samples):
@@ -63,9 +46,19 @@ def calculate_base_forces():
     BASE_FORCES[3] /= float(num_samples)
     print_array("base forces", BASE_FORCES)
 
+def set_db_location_vals_to_empty_string():
+    print "setting location to empty in DB"
+    sys.stdout.flush()
+    FIREDB.put('/locationStatus/q0', 'upc', "empty")
+    FIREDB.put('/locationStatus/q1', 'upc', "empty")
+    FIREDB.put('/locationStatus/q2', 'upc', "empty")
+    FIREDB.put('/locationStatus/q3', 'upc', "empty")
+    print "done resetting"
+    sys.stdout.flush()
+
 def add_item(barcode):
     print "adding item"
-    ITEMS_ADDED += 1
+    sys.stdout.flush()
     wait_for_weight_change()
     f_vals = compute_force()
     delta_f = compute_delta_force(f_vals)
@@ -125,57 +118,62 @@ def update_base_forces(f_vals):
     BASE_FORCES[3] = f_vals[3]
 
 def push_to_db(upc, weight, quadrant):
+    print "pushing to db"
+    global MIN_WEIGHT
     if(weight < MIN_WEIGHT):
         MIN_WEIGHT = weight
     timestamp = datetime.datetime.utcnow()
-    FIREDB.put('/locationStatus/q'+quadrant, 'upc' , upc)
-    FIREDB.post('/eventLog/', {'upc':upc, 'weight':weight, 'timestamp':timestamp})
+    FIREDB.put('/locationStatus/q'+str(quadrant[0]), 'upc' , str(upc))
+    FIREDB.post('/eventLog/', {'upc':str(upc), 'weight':str(weight[0]), 'timestamp':timestamp})
 
 def check_weight_change():
     f_vals = compute_force()
     delta_f = compute_delta_force(f_vals)
     if(valid_forces_for_remove(delta_f) ):
         remove_item()
-        #return
 
 def  valid_forces_for_remove(delta_f):
     for i in range(len(delta_f)):
-        if not (delta_f[i] > MIN_WEIGHT):
+        print "delta_f "+str(delta_f[i])
+        #if not (delta_f[i] > (MIN_WEIGHT * 0.8 ) ):
+        if delta_f[i] > (MIN_WEIGHT * 0.8 ):
             #print "delta forces for removing should be grater than "+MIN_WEIGHT
-            return False
-    return True
+            return True
+    return False
 
 #def remove_item(result):
 def remove_item():
-    ITEMS_ADDED -= 1
     print "item removed"
 
 def calculate_anal_dig_values():
     cmd = [SHELFIE_EXE, "a"]
-    return exec_command(cmd)
+    return exec_command(cmd, "i")
 
 def calculate_resistance(ad_vals):
     cmd = [SHELFIE_EXE, "r", str(ad_vals[0]), str(ad_vals[1]), str(ad_vals[2]), str(ad_vals[3]) ]
-    return exec_command(cmd)
+    return exec_command(cmd, "")
 
 def calculate_force_values(r_vals):
     cmd = [SHELFIE_EXE, "f", str(r_vals[0]), str(r_vals[1]), str(r_vals[2]), str(r_vals[3]) ]
-    return exec_command(cmd)
+    return exec_command(cmd, "")
 
 def calculate_weight(f_vals):
     cmd = [SHELFIE_EXE, "w", str(f_vals[0]), str(f_vals[1]), str(f_vals[2]), str(f_vals[3]) ]
-    return exec_command(cmd)
+    return exec_command(cmd, "")
 
 def calculate_quadrant(f_vals):
     cmd = [SHELFIE_EXE, "q", str(f_vals[0]), str(f_vals[1]), str(f_vals[2]), str(f_vals[3]) ]
-    return exec_command(cmd)
+    return exec_command(cmd, "i")
 
-def exec_command(cmd):
+def exec_command(cmd, data_type):
     proc = subprocess.Popen(cmd, shell=False, stdout=subprocess.PIPE)
     output = proc.stdout.read()
     values = output.split()
     for i in range(len(values)):
-        values[i] = float(values[i])
+        if data_type == "i":
+            values[i] = int(values[i])
+        else:
+            values[i] = float(values[i])
     return values
     
 def print_array(msg, array):
@@ -186,3 +184,6 @@ def print_array(msg, array):
 if __name__ == "__main__":
     main()
 
+#myNIX = Nutritionix(app_id = 'e0ac53a3', api_key = 'd09fefa67cab784f85cb9fff2a6d48c8');
+
+#print myNIX.item(upc="070847811169").json();
