@@ -2,14 +2,19 @@ from multiprocessing import Pool
 from mcr12 import *
 import subprocess
 import os
+import time
 
 SHELFIE_EXE = "/home/root/smart_shelf"
+NUM_FORCE_SAMPLES = 5
+NUM_WORKERS = 1
+BASE_FORCES = [0.0, 0.0, 0.0, 0.0]
 
 def main():
-    pool = Pool(processes=2)
+    pool = Pool(processes=NUM_WORKERS)
+    calculate_base_forces();
     while True:
         pool.apply_async(get_barcode, callback=add_item)
-        pool.apply_async(check_weight_change, callback=remove_item)
+        #pool.apply_async(check_weight_change, callback=remove_item)
         #barcode = result.get(timeout=1)
         #print barcode
         #scan_has_ocurred()
@@ -25,54 +30,113 @@ def main():
 #     pool.join()
 #     #return get_barcode("/dev/input/event2")
 
+def calculate_base_forces():
+    num_samples = NUM_FORCE_SAMPLES
+    for i in range(num_samples):
+        ad_vals = calculate_anal_dig_values()
+        r_vals = calculate_resistance(ad_vals)
+        f_vals = calculate_force_values(r_vals)
+        BASE_FORCES[0] += f_vals[0]
+        BASE_FORCES[1] += f_vals[1]
+        BASE_FORCES[2] += f_vals[2]
+        BASE_FORCES[3] += f_vals[3]
+    BASE_FORCES[0] /= float(num_samples)
+    BASE_FORCES[1] /= float(num_samples)
+    BASE_FORCES[2] /= float(num_samples)
+    BASE_FORCES[3] /= float(num_samples)
+    print_array("base forces", BASE_FORCES)
+    
 def check_weight_change():
     return
 
 def add_item(barcode):
     print "adding item"
-    print barcode
-    ad_vals = calculate_anal_dig_values()
-    print ad_vals
-    r_vals = calculate_resistance(ad_vals)
-    print r_vals
-    f_vals = calculate_force_values(r_vals)
-    print f_vals
+    wait_for_weight_change()
+    f_vals = compute_force()
+    delta_f = compute_delta_force(f_vals)
+    if(not valid_forces_for_add(delta_f) ):
+        return
     weight = calculate_weight(f_vals)
-    print weight
     quadrant = calculate_quadrant(f_vals)
-    print quadrant
+    print_array("weight", weight)
+    print_array("quadrant", quadrant)
     
+def wait_for_weight_change():
+    print "waiting for weight change"
+    time.sleep(5)
+    
+def compute_force():
+    print "computing avg force"
+    num_samples = NUM_FORCE_SAMPLES
+    force_values = [0.0, 0.0, 0.0, 0.0]
+    for i in range(NUM_FORCE_SAMPLES):
+        ad_vals = calculate_anal_dig_values()
+        r_vals = calculate_resistance(ad_vals)
+        f_vals = calculate_force_values(r_vals)
+        force_values[0] += f_vals[0]
+        force_values[1] += f_vals[1]
+        force_values[2] += f_vals[2]
+        force_values[3] += f_vals[3]
+    force_values[0] /= float(num_samples)
+    force_values[1] /= float(num_samples)
+    force_values[2] /= float(num_samples)
+    force_values[3] /= float(num_samples)
+    print_array("force values", force_values)
+    return force_values
+    
+def compute_delta_force(f_vals):
+    print "computing delta force"
+    delta_f = [0.0, 0.0, 0.0, 0.0]
+    delta_f[0] = abs(BASE_FORCES[0] - f_vals[0])
+    delta_f[1] = abs(BASE_FORCES[1] - f_vals[1])
+    delta_f[2] = abs(BASE_FORCES[2] - f_vals[2])
+    delta_f[3] = abs(BASE_FORCES[3] - f_vals[3])
+    print_array("delta force", delta_f)
+    return delta_f
+
+def  valid_forces_for_add(delta_f):
+    for i in range(len(delta_f)):
+        if delta_f[i] < 0:
+            print "delta forces for adding item should be positive"
+            return False
+    return True
 
 def calculate_anal_dig_values():
     cmd = [SHELFIE_EXE, "a"]
     return exec_command(cmd)
 
 def calculate_resistance(ad_vals):
-    cmd = [SHELFIE_EXE, "r", ad_vals[0], ad_vals[1], ad_vals[2], ad_vals[3] ]
+    cmd = [SHELFIE_EXE, "r", str(ad_vals[0]), str(ad_vals[1]), str(ad_vals[2]), str(ad_vals[3]) ]
     return exec_command(cmd)
 
 def calculate_force_values(r_vals):
-    cmd = [SHELFIE_EXE, "f", r_vals[0], r_vals[1], r_vals[2], r_vals[3] ]
+    cmd = [SHELFIE_EXE, "f", str(r_vals[0]), str(r_vals[1]), str(r_vals[2]), str(r_vals[3]) ]
     return exec_command(cmd)
 
 def calculate_weight(f_vals):
-    cmd = [SHELFIE_EXE, "w", f_vals[0], f_vals[1], f_vals[2], f_vals[3] ]
+    cmd = [SHELFIE_EXE, "w", str(f_vals[0]), str(f_vals[1]), str(f_vals[2]), str(f_vals[3]) ]
     return exec_command(cmd)
 
 def calculate_quadrant(f_vals):
-    cmd = [SHELFIE_EXE, "q", f_vals[0], f_vals[1], f_vals[2], f_vals[3] ]
+    cmd = [SHELFIE_EXE, "q", str(f_vals[0]), str(f_vals[1]), str(f_vals[2]), str(f_vals[3]) ]
     return exec_command(cmd)
 
 def exec_command(cmd):
     proc = subprocess.Popen(cmd, shell=False, stdout=subprocess.PIPE)
     output = proc.stdout.read()
     values = output.split()
+    for i in range(len(values)):
+        values[i] = float(values[i])
     return values
     
 
 def remove_item(result):
     print "removing item"
     print result
+
+def print_array(msg, array):
+    print msg+": ",
+    print array
     
 # start process
 if __name__ == "__main__":

@@ -22,7 +22,6 @@ def get_barcode(dev = "/dev/input/event2"):
 
     looping = True
     barcode = ""
-
     i = 0
     twelve = 0
     while looping:
