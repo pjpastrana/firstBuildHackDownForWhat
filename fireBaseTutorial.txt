@@ -1,0 +1,24 @@
+- include js firebase library: <script src='https://cdn.firebase.com/js/client/2.2.1/firebase.js'></script>
+- instantiate a firebase reference: var myDataRef = new Firebase('https://i63lnqioor6.firebaseio-demo.com/');
+- insert text into DB: myDataRef.set('User ' + name + ' says ' + text);
+- insert objects: myDataRef.set({name: name, text: text});
+<!--
+You've already learned how to write data to specific, named locations in Firebase, 
+but your chat application will require a list of messages. 
+Firebase provides a helper function called push() that makes creating lists easy.
+Modify your code below to use push() instead of set() so that your chat can 
+support a list of messages (rather than just one):
+-->
+- Update?: myDataRef.push({name: name, text: text});
+<!--
+Firebase lists use chronologically-ordered, globally-unique IDs as the keys for items. 
+This means that many clients can add to the same list without conflict.
+-->
+
+- reading data: https://www.firebase.com/docs/web/guide/retrieving-data.html
+adds a callback to the db instance so that when we insert data gets called
+myDataRef.on('child_added', function(snapshot) {
+    //We'll fill this in later.
+    var message = snapshot.val();
+    displayChatMessage(message.name, message.text);
+});

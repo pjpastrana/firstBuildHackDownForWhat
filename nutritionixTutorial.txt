@@ -1,0 +1,3 @@
+Downlad python libs: https://developer.nutritionix.com/libraries
+
+https://api.nutritionix.com/v1_1/search/mcdonalds?results=0:20&fields=item_name,brand_name,item_id,nf_calories&appId=e1839b88&appKey=4076e818f4e3eeb0fc7d762f58dba1f4
