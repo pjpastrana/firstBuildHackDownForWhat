@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+<head>
+<script src="//ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
+<script type="text/javascript" src="https://www.google.com/jsapi?autoload={'modules':[{'name':'visualization','version':'1.1','packages':['corechart']}]}"></script>
+<script src='https://cdn.firebase.com/js/client/2.2.1/firebase.js'></script>
+<script src="http://code.highcharts.com/highcharts.js"></script>
+<script src="http://code.highcharts.com/modules/exporting.js"></script>
+
+
+<style>
+h1 {text-align:center;}
+p.center {text-align:center;}
+table.center {margin-left:auto; margin-right:auto;}
+</style>
+    <title>SHELFie: The Web Page!</title>
+</head>
+<body>
+<h1>SHELFie</h1>
+</br>	
+<p class="center"><strong>Item Locations<strong></p>
+	<script>
+	  var upcToName;
+		var myDataRef = new Firebase('https://torrid-heat-7640.firebaseio.com/');
+		//var logRef = new Firebase('https://torrid-heat-7640.firebaseio.com/eventLog');
+		
+		/*
+		myDataRef.on('value', function(snapshot) {
+			upcToName = snapshot.val().upcToName;
+			
+		});
+		*/
+		
+		myDataRef.on('child_changed', function(snapshot) {
+			child = snapshot.val();
+			//if(child.hasOwnProperty('050000351107')) {
+				//return;
+			//}
+			var upcToName;
+			myDataRef.child('upcToName').once('value',function(snap) {
+				upcToName = snap.val();
+			});
+			if(child.hasOwnProperty('q0')) {
+				upc = child.q0.upc;
+				var value = upc;
+				if(upc != "empty") {
+					value = upcToName[upc].name;
+				}
+				document.getElementById("q0").innerHTML = value;
+			} 
+			if(child.hasOwnProperty('q1')) {
+				upc = child.q1.upc;
+				var value = upc;
+				if(upc != "empty") {
+					value = upcToName[upc].name;
+				}
+				document.getElementById("q1").innerHTML = value;
+			} 
+			if(child.hasOwnProperty('q2')) {
+				upc = child.q2.upc;
+				var value = upc;
+				if(upc != "empty") {
+					value = upcToName[upc].name;
+				}
+				document.getElementById("q2").innerHTML = value;
+			} 
+			if(child.hasOwnProperty('q3')) {
+				upc = child.q3.upc;
+				var value = upc;
+				if(upc != "empty") {
+					value = upcToName[upc].name;
+				}
+				document.getElementById("q3").innerHTML = value;
+			}
+		});
+		
+		/*
+		var seriesData = [{
+            name: 'Monster',
+            data: [[0, 100], [5, 50]]
+        }, {
+            name: 'Red Bull',
+            data:  [[1, 80], [4, 20]]
+        }, {
+            name: 'Chips',
+            data:  [[2, 100], [6, 80], [7, 60]]
+        }, {
+            name: 'Creamer',
+            data:  [[3, 100], [8, 90]]
+        }];
+				*/
+				
+/*
+var ref = new Firebase(rootPath);
+ref.child('item-log').on('child_added', function(snap){
+    var itemName = snap.key();
+    ref.child('items').child(itemName).once('value', function(snap){
+        var itemData = snap.val();
+
+    });
+});
+				*/
+		var seriesData = [];
+		myDataRef.on('child_added', function(snapshot) {
+			child = snapshot.val();
+			if(child.hasOwnProperty('q0') || child.hasOwnProperty('050000351107')) {
+				return;
+			}
+			for(var c = 0; c < Object.keys(child).length; c ++) {
+				upc = child[Object.keys(child)[c]].upc;
+				weight = child[Object.keys(child)[c]].weight;
+				timestamp = child[Object.keys(child)[c]].timestamp;
+				var name;
+				var maxWeight;
+				myDataRef.child('upcToName').child(upc).once('value',function(snap) {
+					name = snap.val().name;
+					maxWeight = snap.val().maxWeight;
+				});
+				//name = upcToName[upc].name;
+				percent = weight / maxWeight;
+				
+				seriesIndex = -1;
+				for(i = 0; i < seriesData.length; i ++) {
+					if(seriesData[i].name == name) {
+						seriesIndex = i;
+						break;
+					}
+				}
+				
+				if(seriesIndex == -1) {
+					var newSeries = {};
+					newSeries.name = name;
+					newSeries.data = [[timestamp, percent]];
+					seriesData.push(newSeries);
+				} else {
+					seriesData[seriesIndex].data.push([timestamp, percent]);
+				}
+			}
+			$('#container').highcharts({
+        chart: {
+            type: 'spline'
+        },
+        title: {
+            text: 'Item Quantity Tracking'
+        },
+        xAxis: {
+            title: {
+                text: 'Time'
+            }
+        },
+        yAxis: {
+            title: {
+                text: '% Remaining'
+            },
+            min: 0
+        },
+
+        plotOptions: {
+            spline: {
+                marker: {
+                    enabled: true
+                }
+            }
+        },
+
+        series: seriesData
+    });
+		});
+		
+	</script>
+    <table border="1" class="center" style="background-color:#FFFFFF;border-collapse:collapse;border:1px solid #000000;color:#000000;float:center" cellpadding="0" cellspacing="0">
+			<tr>
+				<td id="q1" style="height:200px;width:200px;text-align:center">empty</td>
+				<td id="q2" style="height:200px;width:200px;text-align:center">empty</td>
+			</tr>
+			<tr>
+				<td id="q3" style="height:200px;width:200px;text-align:center">empty</td>
+				<td id="q0" style="height:200px;width:200px;text-align:center">empty</td>
+			</tr>
+		</table>
+		</br>
+		<div id="container" style="width:100%; height:400px;"></div>
+</body>
+</html>
