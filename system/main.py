@@ -9,10 +9,11 @@ import datetime
 
 SHELFIE_EXE = "/home/root/smart_shelf"
 NUM_FORCE_SAMPLES = 5
-NUM_WORKERS = 2
+NUM_WORKERS = 1
 BASE_FORCES = [0.0, 0.0, 0.0, 0.0]
 MIN_WEIGHT = sys.maxint
 FIREDB = firebase.FirebaseApplication('https://torrid-heat-7640.firebaseio.com', None)
+
 
 def main():
     init()
@@ -59,6 +60,9 @@ def set_db_location_vals_to_empty_string():
 def add_item(barcode):
     print "adding item"
     sys.stdout.flush()
+    #os.execl(SHELFIE_EXE, "l")
+    cmd = [SHELFIE_EXE, "l"]
+    subprocess.Popen(cmd, shell=False, stdout=subprocess.PIPE)
     wait_for_weight_change()
     f_vals = compute_force()
     delta_f = compute_delta_force(f_vals)
@@ -184,6 +188,3 @@ def print_array(msg, array):
 if __name__ == "__main__":
     main()
 
-#myNIX = Nutritionix(app_id = 'e0ac53a3', api_key = 'd09fefa67cab784f85cb9fff2a6d48c8');
-
-#print myNIX.item(upc="070847811169").json();
