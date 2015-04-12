@@ -50,9 +50,12 @@ const char QUAD_SWITCH		= 'q';
 const char FORCE_SWITCH		= 'f';
 const char RES_SWITCH		= 'r';
 const char AIN_SWITCH		= 'a';
+const char LED_SWITCH       = 'l';
 
 float A_const[4] = {1.3785f,	1.3196f, 	1.7905f, 	1.4368f};
 float B_const[4] = {-0.75f, 	-0.734f, 	-0.802f, 	-0.741f};
+//float A_const[4] = {2.7376f,	3.5216f, 	2.9197f, 	4.5708f};
+//float B_const[4] = {-1.094f, 	-1.011f, 	-0.994f, 	-1.229f};
 float r_const = 3.23;
 
 // calculates the weight from the vector array
@@ -114,6 +117,27 @@ int main(int argc,  char* argv[])
 		std::cerr << "Can't create mraa::Aio object for analog-in 3, exiting" << std::endl;
 		return MRAA_ERROR_UNSPECIFIED;
 	}
+
+	// create a gpio object from MRAA using pin 8
+	mraa::Gpio* d_pin = new mraa::Gpio(8);
+	if(d_pin == NULL) {
+		std::cerr << "Can't create mraa::Gpio object, exiting" << std::endl;
+		return MRAA_ERROR_UNSPECIFIED;
+	}
+
+	// set the pin as output
+	if(d_pin->dir(mraa::DIR_OUT) != MRAA_SUCCESS) {
+		std::cerr << "Can't set digital pin as output, exiting" << std::endl;
+		return MRAA_ERROR_UNSPECIFIED;
+	}
+
+	// loop forever toggling the digital output every second
+//	for(;;) {
+//		d_pin->write(0);
+//		sleep(1);
+//		d_pin->write(1);
+//		sleep(1);
+//	}
 
 	if(argc <= 1)
 	{
@@ -197,6 +221,12 @@ int main(int argc,  char* argv[])
 		atd_values[2] = (int)a2_pin->read();
 		atd_values[3] = (int)a3_pin->read();
 		printf("%d %d %d %d\n", atd_values[0], atd_values[1], atd_values[2], atd_values[3]);
+	}
+	else if(argv[1][0] == LED_SWITCH)
+	{
+		d_pin->write(1);
+		sleep(5);
+		d_pin->write(0);
 	}
 
 	return MRAA_SUCCESS;
