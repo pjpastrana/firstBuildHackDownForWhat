@@ -180,5 +180,24 @@ ref.child('item-log').on('child_added', function(snap){
 		</table>
 		</br>
 		<div id="container" style="width:100%; height:400px;"></div>
+		
+		<audio id="DJBJ" src="TD4W.mp3" type="audio/mpeg"></audio>
+
+	<script>
+		function play_pause() {
+			var audioPlayer = document.getElementById('DJBJ');
+			
+			if (audioPlayer.paused)
+				audioPlayer.play();
+			else {
+				audioPlayer.pause();
+				audioPlayer.currentTime = 0;
+			}
+		}
+	</script>
+
+	<!-- button onclick="document.getElementById('DJBJ').play()">HD4W</button --> 
+	<p class="center">This project is brought to you by: <button class="center" onclick="play_pause()">Team Hack Down For What</button>  </p>
+		
 </body>
 </html>

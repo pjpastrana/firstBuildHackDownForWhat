@@ -54,6 +54,8 @@ const char LED_SWITCH       = 'l';
 
 float A_const[4] = {1.3785f,	1.3196f, 	1.7905f, 	1.4368f};
 float B_const[4] = {-0.75f, 	-0.734f, 	-0.802f, 	-0.741f};
+//float A_const[4] = {2.7376f,	3.5216f, 	2.9197f, 	4.5708f};
+//float B_const[4] = {-1.094f, 	-1.011f, 	-0.994f, 	-1.229f};
 float r_const = 3.23;
 
 // calculates the weight from the vector array
@@ -222,15 +224,9 @@ int main(int argc,  char* argv[])
 	}
 	else if(argv[1][0] == LED_SWITCH)
 	{
-		int led_on = atoi(argv[2]);
-		if(led_on)
-		{
-			d_pin->write(1);
-		}
-		else
-		{
-			d_pin->write(0);
-		}
+		d_pin->write(1);
+		sleep(5);
+		d_pin->write(0);
 	}
 
 	return MRAA_SUCCESS;
