@@ -1,4 +1,4 @@
-from multiprocessing import Pool
+import threading
 from mcr12 import *
 import subprocess
 import os
@@ -9,18 +9,15 @@ import datetime
 
 SHELFIE_EXE = "/home/root/smart_shelf"
 NUM_FORCE_SAMPLES = 5
-NUM_WORKERS = 1
 BASE_FORCES = [0.0, 0.0, 0.0, 0.0]
-MIN_WEIGHT = sys.maxint
+WEIGHT = 0
 FIREDB = firebase.FirebaseApplication('https://torrid-heat-7640.firebaseio.com', None)
 MOCKING = True
 
 def main():
     init()
-    pool = Pool(processes=NUM_WORKERS)
-    while True:
-        pool.apply_async(mock_get_barcode, callback=add_item)
-        #pool.apply_async(check_weight_change)
+    #create_and_start_upc_scan_thread()
+    create_and_start_weight_change_thread()
 
 def init():
     print "init start"
@@ -29,6 +26,16 @@ def init():
     print "init done"
     
 def calculate_base_forces():
+    global WEIGHT
+    if MOCKING:
+        BASE_FORCES[0] = 10.0
+        BASE_FORCES[1] = 10.0
+        BASE_FORCES[2] = 10.0
+        BASE_FORCES[3] = 10.0
+        WEIGHT = 4
+        print_array("base forces", BASE_FORCES)
+        return
+    
     num_samples = NUM_FORCE_SAMPLES
     for i in range(num_samples):
         ad_vals = calculate_anal_dig_values()
@@ -42,6 +49,7 @@ def calculate_base_forces():
     BASE_FORCES[1] /= float(num_samples)
     BASE_FORCES[2] /= float(num_samples)
     BASE_FORCES[3] /= float(num_samples)
+    WEIGHT = calculate_weight(BASE_FORCES)[0]
     print_array("base forces", BASE_FORCES)
 
 def set_db_location_vals_to_empty_string():
@@ -52,7 +60,23 @@ def set_db_location_vals_to_empty_string():
     FIREDB.put('/locationStatus/q3', 'upc', "empty")
     print "done resetting DB"
 
+def create_and_start_upc_scan_thread():
+    add_item_thread = threading.Thread(target=scan_has_ocurred)
+    add_item_thread.start()
+
+def create_and_start_weight_change_thread():
+    weight_change_thread = threading.Thread(target=weight_change_ocurred)
+    weight_change_thread.start()
+    return
+    
+def scan_has_ocurred():
+    while True:
+        barcode = mock_get_barcode()
+        print "barcode "+ barcode
+        add_item(barcode)    
+
 def add_item(barcode):
+    global WEIGHT
     print "adding item"
     turn_lights_on()
     wait_for_weight_change()
@@ -60,9 +84,10 @@ def add_item(barcode):
     delta_f = compute_delta_force(f_vals)
     if(not valid_forces_for_add(delta_f) ):
         return
-    weight = calculate_weight(f_vals)
-    quadrant = calculate_quadrant(f_vals)
+    weight = calculate_weight(delta_f)
+    Quadrant = calculate_quadrant(delta_f)
     update_base_forces(f_vals)
+    WEIGHT = weight[0]
     print_array("weight", weight)
     print_array("quadrant", quadrant)
     push_to_db(barcode, weight, quadrant)
@@ -70,12 +95,18 @@ def add_item(barcode):
 def turn_lights_on():
     cmd = [SHELFIE_EXE, "l"]
     exec_command(cmd)
-    
+
+# weighting for the user to place item in the shelf
 def wait_for_weight_change():
     print "waiting for weight change"
     time.sleep(5)
     
 def compute_force():
+    if MOCKING:
+        force_values = [9.0, 8.0, 7.0, 6.0]
+        print_array("force values", force_values)
+        return force_values
+    
     print "computing avg force"
     num_samples = NUM_FORCE_SAMPLES
     force_values = [0.0, 0.0, 0.0, 0.0]
@@ -97,14 +128,14 @@ def compute_force():
 def compute_delta_force(f_vals):
     print "computing delta force"
     delta_f = [0.0, 0.0, 0.0, 0.0]
-    delta_f[0] = abs(BASE_FORCES[0] - f_vals[0])
-    delta_f[1] = abs(BASE_FORCES[1] - f_vals[1])
-    delta_f[2] = abs(BASE_FORCES[2] - f_vals[2])
-    delta_f[3] = abs(BASE_FORCES[3] - f_vals[3])
+    delta_f[0] = f_vals[0] - BASE_FORCES[0]
+    delta_f[1] = f_vals[1] - BASE_FORCES[1]
+    delta_f[2] = f_vals[2] - BASE_FORCES[2]
+    delta_f[3] = f_vals[3] - BASE_FORCES[3]
     print_array("delta force", delta_f)
     return delta_f
 
-def  valid_forces_for_add(delta_f):
+def valid_forces_for_add(delta_f):
     for i in range(len(delta_f)):
         if delta_f[i] < 0:
             print "delta forces for adding item should be positive"
@@ -119,29 +150,34 @@ def update_base_forces(f_vals):
 
 def push_to_db(upc, weight, quadrant):
     print "pushing to db"
-    global MIN_WEIGHT
-    if(weight < MIN_WEIGHT):
-        MIN_WEIGHT = weight
     timestamp = datetime.datetime.utcnow()
     FIREDB.put('/locationStatus/q'+str(quadrant[0]), 'upc' , str(upc))
     FIREDB.post('/eventLog/', {'upc':str(upc), 'weight':str(weight[0]), 'timestamp':timestamp})
 
-def check_weight_change():
-    f_vals = compute_force()
-    delta_f = compute_delta_force(f_vals)
-    if(valid_forces_for_remove(delta_f) ):
-        remove_item()
+def weight_change_ocurred():
+    global WEIGHT
+    while True:
+        f_vals = compute_force()
+        delta_f = compute_delta_force(f_vals)
+        weight = calculate_weight(delta_f)[0]
+        print "WEIGHT ",
+        print WEIGHT,
+        print " weight ",
+        print weight
+        print "(WEIGHT - WEIGHT * .10) ",
+        print (WEIGHT - WEIGHT * .10)
+        print weight <= (WEIGHT - WEIGHT * .10) 
+        if(valid_forces_for_remove(delta_f) and weight <= (WEIGHT - WEIGHT * .10) ):
+            remove_item()
+        time.sleep(3)
 
-def  valid_forces_for_remove(delta_f):
+def valid_forces_for_remove(delta_f):
     for i in range(len(delta_f)):
-        print "delta_f "+str(delta_f[i])
-        #if not (delta_f[i] > (MIN_WEIGHT * 0.8 ) ):
-        if delta_f[i] > (MIN_WEIGHT * 0.8 ):
-            #print "delta forces for removing should be grater than "+MIN_WEIGHT
-            return True
-    return False
+        if delta_f[i] > 0:
+            print "delta forces for removing item should be negative"
+            return False
+    return True
 
-#def remove_item(result):
 def remove_item():
     print "item removed"
 
@@ -168,14 +204,14 @@ def calculate_force_values(r_vals):
 
 def calculate_weight(f_vals):
     if MOCKING:
-        return [1.0, 2.0, 3.0, 4.0]
+        return [3.0]
     cmd = [SHELFIE_EXE, "w", str(f_vals[0]), str(f_vals[1]), str(f_vals[2]), str(f_vals[3]) ]
     vals = exec_command(cmd)
     return str_list_to_float_list(vals)
 
 def calculate_quadrant(f_vals):
     if MOCKING:
-        return [1, 2, 3, 4]
+        return [4]
     cmd = [SHELFIE_EXE, "q", str(f_vals[0]), str(f_vals[1]), str(f_vals[2]), str(f_vals[3]) ]
     vals = exec_command(cmd)
     return str_list_to_int_list(vals)
