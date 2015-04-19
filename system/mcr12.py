@@ -19,7 +19,6 @@ barcmd['9']="26"
 	
 def get_barcode(dev = "/dev/input/event2"):
     hiddev = open(dev, "rb")
-
     looping = True
     barcode = ""
     i = 0

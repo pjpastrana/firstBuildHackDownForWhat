@@ -81,6 +81,3 @@ class Nutritionix(object):
 		
 		
 
-myNIX = Nutritionix(app_id = 'e0ac53a3', api_key = 'd09fefa67cab784f85cb9fff2a6d48c8');
-
-print myNIX.item(upc="070847811169").json();

@@ -21,20 +21,17 @@ def main():
     while True:
         pool.apply_async(get_barcode, callback=add_item)
         #pool.apply_async(check_weight_change)
-       
 
 def init():
     print "init start"
-    sys.stdout.flush()
     calculate_base_forces()
     set_db_location_vals_to_empty_string()
     print "init done"
-    sys.stdout.flush()
     
 def calculate_base_forces():
     num_samples = NUM_FORCE_SAMPLES
     for i in range(num_samples):
-        ad_vals = calculate_anal_dig_values()
+        ad_vals = calculate_anal_dig_valuesnal_dig_values()
         r_vals = calculate_resistance(ad_vals)
         f_vals = calculate_force_values(r_vals)
         BASE_FORCES[0] += f_vals[0]
@@ -49,20 +46,15 @@ def calculate_base_forces():
 
 def set_db_location_vals_to_empty_string():
     print "setting location to empty in DB"
-    sys.stdout.flush()
     FIREDB.put('/locationStatus/q0', 'upc', "empty")
     FIREDB.put('/locationStatus/q1', 'upc', "empty")
     FIREDB.put('/locationStatus/q2', 'upc', "empty")
     FIREDB.put('/locationStatus/q3', 'upc', "empty")
     print "done resetting"
-    sys.stdout.flush()
 
 def add_item(barcode):
     print "adding item"
-    sys.stdout.flush()
-    #os.execl(SHELFIE_EXE, "l")
-    cmd = [SHELFIE_EXE, "l"]
-    subprocess.Popen(cmd, shell=False, stdout=subprocess.PIPE)
+    turn_lights_on()
     wait_for_weight_change()
     f_vals = compute_force()
     delta_f = compute_delta_force(f_vals)
@@ -74,6 +66,10 @@ def add_item(barcode):
     print_array("weight", weight)
     print_array("quadrant", quadrant)
     push_to_db(barcode, weight, quadrant)
+
+def turn_lights_on():
+    cmd = [SHELFIE_EXE, "l"]
+    exec_command(cmd)
     
 def wait_for_weight_change():
     print "waiting for weight change"
@@ -151,39 +147,60 @@ def remove_item():
 
 def calculate_anal_dig_values():
     cmd = [SHELFIE_EXE, "a"]
-    return exec_command(cmd, "i")
+    vals = exec_command(cmd)
+    return str_list_to_int_list(vals)
 
 def calculate_resistance(ad_vals):
     cmd = [SHELFIE_EXE, "r", str(ad_vals[0]), str(ad_vals[1]), str(ad_vals[2]), str(ad_vals[3]) ]
-    return exec_command(cmd, "")
+    vals = exec_command(cmd)
+    return (vals)
 
 def calculate_force_values(r_vals):
     cmd = [SHELFIE_EXE, "f", str(r_vals[0]), str(r_vals[1]), str(r_vals[2]), str(r_vals[3]) ]
-    return exec_command(cmd, "")
+    vals = exec_command(cmd)
+    return str_list_to_float_list(vals)
 
 def calculate_weight(f_vals):
     cmd = [SHELFIE_EXE, "w", str(f_vals[0]), str(f_vals[1]), str(f_vals[2]), str(f_vals[3]) ]
-    return exec_command(cmd, "")
+    vals = exec_command(cmd)
+    return str_list_to_float_list(vals)
 
 def calculate_quadrant(f_vals):
     cmd = [SHELFIE_EXE, "q", str(f_vals[0]), str(f_vals[1]), str(f_vals[2]), str(f_vals[3]) ]
-    return exec_command(cmd, "i")
+    vals = exec_command(cmd)
+    return str_list_to_int_list(vals)
 
 def exec_command(cmd, data_type):
-    proc = subprocess.Popen(cmd, shell=False, stdout=subprocess.PIPE)
-    output = proc.stdout.read()
-    values = output.split()
+    print_array("Executing commands", cmd)
+    return ""
+    # proc = subprocess.Popen(cmd, shell=False, stdout=subprocess.PIPE)
+    # output = proc.stdout.read()
+    # values = output.split()
+    # return values
+
+def str_list_to_int_list(str_list):
+    cast_list_to_type(str_list, "i")
+
+def str_list_to_float_list(str_list):
+    cast_list_to_type(str_list, "f")
+
+
+def cast_list_to_type(values, data_type):
     for i in range(len(values)):
         if data_type == "i":
             values[i] = int(values[i])
         else:
             values[i] = float(values[i])
     return values
-    
+        
 def print_array(msg, array):
     print msg+": ",
     print array
-    
+
+##
+# MOCKING FUNCTIONS FOR TESTING
+##
+        
 # start process
 if __name__ == "__main__":
     main()
