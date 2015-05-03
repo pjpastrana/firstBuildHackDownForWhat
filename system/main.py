@@ -10,12 +10,14 @@ import datetime
 SHELFIE_EXE = "/home/root/smart_shelf"
 NUM_FORCE_SAMPLES = 5
 BASE_FORCES = [0.0, 0.0, 0.0, 0.0]
-WEIGHT = 0
+WEIGHT = 0.0
 FIREDB = firebase.FirebaseApplication('https://torrid-heat-7640.firebaseio.com', None)
+LOCK = threading.Lock()
+ADDING_ITEM_EVENT = threading.Event()
 
 def main():
     init()
-    #create_and_start_upc_scan_thread()
+    create_and_start_upc_scan_thread()
     create_and_start_weight_change_thread()
 
 def init():
@@ -29,7 +31,6 @@ def calculate_base_forces():
     num_samples = NUM_FORCE_SAMPLES
     for i in range(num_samples):
         ad_vals = calculate_anal_dig_values()
-        print_array("ad_values ", ad_vals)
         r_vals = calculate_resistance(ad_vals)
         f_vals = calculate_force_values(r_vals)
         BASE_FORCES[0] += f_vals[0]
@@ -41,7 +42,8 @@ def calculate_base_forces():
     BASE_FORCES[2] /= float(num_samples)
     BASE_FORCES[3] /= float(num_samples)
     WEIGHT = calculate_weight(BASE_FORCES)[0]
-    print_array("base forces", BASE_FORCES)
+    print "base forces", BASE_FORCES
+    print "base weight", WEIGHT
 
 def set_db_location_vals_to_empty_string():
     print "setting location to empty in DB"
@@ -63,8 +65,10 @@ def create_and_start_weight_change_thread():
 def scan_has_ocurred():
     while True:
         barcode = get_barcode()
+        ADDING_ITEM_EVENT.set()
         print "barcode "+ barcode
-        add_item(barcode)    
+        add_item(barcode)
+        ADDING_ITEM_EVENT.clear()
 
 def add_item(barcode):
     global WEIGHT
@@ -76,11 +80,11 @@ def add_item(barcode):
     if(not valid_forces_for_add(delta_f) ):
         return
     weight = calculate_weight(delta_f)
-    Quadrant = calculate_quadrant(delta_f)
+    quadrant = calculate_quadrant(delta_f)
     update_base_forces(f_vals)
     WEIGHT = weight[0]
-    print_array("weight", weight)
-    print_array("quadrant", quadrant)
+    print "weight", weight
+    print "quadrant", quadrant
     push_to_db(barcode, weight, quadrant)
 
 def turn_lights_on():
@@ -108,17 +112,22 @@ def compute_force():
     force_values[1] /= float(num_samples)
     force_values[2] /= float(num_samples)
     force_values[3] /= float(num_samples)
-    print_array("force values", force_values)
+    print "force values", force_values
     return force_values
     
 def compute_delta_force(f_vals):
     print "computing delta force"
     delta_f = [0.0, 0.0, 0.0, 0.0]
-    delta_f[0] = f_vals[0] - BASE_FORCES[0]
-    delta_f[1] = f_vals[1] - BASE_FORCES[1]
-    delta_f[2] = f_vals[2] - BASE_FORCES[2]
-    delta_f[3] = f_vals[3] - BASE_FORCES[3]
-    print_array("delta force", delta_f)
+    for i in range(NUM_FORCE_SAMPLES):
+        delta_f[0] += f_vals[0] - BASE_FORCES[0]
+        delta_f[1] += f_vals[1] - BASE_FORCES[1]
+        delta_f[2] += f_vals[2] - BASE_FORCES[2]
+        delta_f[3] += f_vals[3] - BASE_FORCES[3]
+    delta_f[0] /= float(NUM_FORCE_SAMPLES)
+    delta_f[1] /= float(NUM_FORCE_SAMPLES)
+    delta_f[2] /= float(NUM_FORCE_SAMPLES)
+    delta_f[3] /= float(NUM_FORCE_SAMPLES)
+    print "delta force", delta_f
     return delta_f
 
 def valid_forces_for_add(delta_f):
@@ -143,19 +152,23 @@ def push_to_db(upc, weight, quadrant):
 def weight_change_ocurred():
     global WEIGHT
     while True:
-        f_vals = compute_force()
-        delta_f = compute_delta_force(f_vals)
-        weight = calculate_weight(delta_f)[0]
-        print "WEIGHT ",
-        print WEIGHT,
-        print " weight ",
-        print weight
-        print "(WEIGHT - WEIGHT * .10) ",
-        print (WEIGHT - WEIGHT * .10)
-        print weight <= (WEIGHT - WEIGHT * .10) 
-        if(valid_forces_for_remove(delta_f) and weight <= (WEIGHT - WEIGHT * .10) ):
-            remove_item()
-        time.sleep(3)
+        if not ADDING_ITEM_EVENT.isSet():
+            f_vals = compute_force()
+            delta_f = compute_delta_force(f_vals)
+            # weight = calculate_weight(delta_f)[0]
+            # print "WEIGHT ",
+            # print WEIGHT,
+            # print " weight ",
+            # print weight
+            # print "(WEIGHT - WEIGHT * .10) ",
+            # print (WEIGHT - WEIGHT * .10)
+            # print weight <= (WEIGHT - WEIGHT * .10) 
+            #if(valid_forces_for_remove(delta_f) and weight <= (WEIGHT - WEIGHT * .10) ):
+            if valid_forces_for_remove(delta_f):
+                remove_item()
+                # if(weight < )
+                #     
+        # time.sleep(3)
 
 def valid_forces_for_remove(delta_f):
     for i in range(len(delta_f)):
@@ -165,7 +178,9 @@ def valid_forces_for_remove(delta_f):
     return True
 
 def remove_item():
-    print "item removed"
+    print "***********************"
+    print "* ITEM REMOVED"
+    print "***********************"
 
 def calculate_anal_dig_values():
     cmd = [SHELFIE_EXE, "a"]
@@ -199,10 +214,10 @@ def exec_command(cmd):
     return values
 
 def str_list_to_int_list(str_list):
-    cast_list_to_type(str_list, "i")
+    return cast_list_to_type(str_list, "i")
 
 def str_list_to_float_list(str_list):
-    cast_list_to_type(str_list, "f")
+    return cast_list_to_type(str_list, "f")
 
 
 def cast_list_to_type(values, data_type):
@@ -212,10 +227,6 @@ def cast_list_to_type(values, data_type):
         else:
             values[i] = float(values[i])
     return values
-        
-def print_array(msg, array):
-    print msg+": ",
-    print array
         
 # start process
 if __name__ == "__main__":
