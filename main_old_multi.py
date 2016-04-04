@@ -1,3 +1,5 @@
+# Adding a comment in the header to test forking issues
+
 from multiprocessing import Pool
 from mcr12 import *
 import subprocess
